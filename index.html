@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>معايرة أجهزة المعمل</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<style>
+:root{--bg:#f4f1ea;--card:#fff;--ink:#2b2620;--mut:#7a7166;--line:#e2dccf;--acc:#8a5a2b;--ok:#2e7d4f;--warn:#c98a00;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1916;--card:#25221e;--ink:#eee7dc;--mut:#a99f92;--line:#3a352e;--acc:#d39a5c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;font-size:16px}
+header{background:var(--acc);color:#fff;padding:14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+header h1{font-size:19px;margin:0;flex:1}
+main{max-width:900px;margin:auto;padding:16px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button.danger{background:var(--bad)}
+header button{background:#fff;color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+input,select,textarea{font:inherit;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px}
+.dev{cursor:pointer}
+.dev h3{margin:0 0 4px;font-size:17px}
+.mut{color:var(--mut);font-size:13px}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;color:#fff;font-weight:600}
+.b-ok{background:var(--ok)}.b-warn{background:var(--warn)}.b-bad{background:var(--bad)}.b-none{background:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px;text-align:right}
+.hidden{display:none}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;opacity:0;transition:.3s;pointer-events:none;max-width:90%}
+#toast.show{opacity:1}
+#nfcOverlay{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9}
+#nfcOverlay .card{text-align:center;max-width:320px}
+.pulse{font-size:54px;animation:p 1.2s infinite}@keyframes p{50%{transform:scale(1.15)}}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stats div{flex:1;min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stats b{display:block;font-size:22px}
+body.viewer header button,body.viewer main{display:none}
+#viewer{max-width:560px;margin:auto;padding:16px}
+.vstat{font-size:22px;font-weight:800;text-align:center;padding:16px;border-radius:14px;color:#fff;margin:10px 0}
+.linkout{font-family:monospace;font-size:12px;direction:ltr;text-align:left;word-break:break-all}
+#qr{background:#fff;padding:10px;display:inline-block;border-radius:8px;margin-top:8px}
+#print{display:none}
+@media print{
+  body{background:#fff;color:#000}
+  header,main,#toast,#nfcOverlay{display:none!important}
+  #print{display:block}
+  @page{size:A4;margin:14mm}
+}
+.cert{font-size:13px;color:#000;background:#fff}
+.cert .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px double #000;padding-bottom:8px}
+.cert h1{font-size:20px;margin:0}
+.cert h2{text-align:center;font-size:18px;margin:14px 0 4px;letter-spacing:1px}
+.cert .no{text-align:center;margin-bottom:12px}
+.cert table{border:1px solid #000;margin:6px 0 12px}
+.cert th,.cert td{border:1px solid #000;padding:5px 7px;text-align:center;color:#000}
+.cert th{background:#eee}
+.cert .kv td:nth-child(odd){background:#f5f5f5;font-weight:600;width:22%}
+.cert .res{font-size:16px;font-weight:700;text-align:center;border:2px solid #000;padding:8px;margin:10px 0}
+.cert .sig{display:flex;gap:30px;margin-top:40px}
+.cert .sig div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center}
+.cert .ft{margin-top:24px;font-size:11px;color:#444;border-top:1px solid #999;padding-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 معايرة أجهزة معمل التربة</h1>
+  <button onclick="openSettings()">⚙ الإعدادات</button>
+  <button onclick="nfcScan()">📡 امسح كارت NFC</button>
+</header>
+
+<main>
+  <!-- قائمة الأجهزة -->
+  <section id="vList">
+    <div class="stats" id="stats"></div>
+    <div class="row" style="margin-bottom:12px">
+      <input id="q" class="grow" placeholder="بحث بالاسم أو الكود أو السيريال..." oninput="renderList()">
+      <button onclick="editDevice()">+ جهاز جديد</button>
+    </div>
+    <div id="list"></div>
+    <div class="card row">
+      <button class="sec" onclick="exportJSON()">⬇ نسخة احتياطية</button>
+      <button class="sec" onclick="document.getElementById('imp').click()">⬆ استرجاع نسخة</button>
+      <button class="sec" onclick="exportCSV()">📄 تصدير Excel (CSV)</button>
+      <input type="file" id="imp" accept=".json" class="hidden" onchange="importJSON(this)">
+    </div>
+    <p class="mut" id="nfcInfo"></p>
+  </section>
+
+  <!-- تفاصيل جهاز -->
+  <section id="vDev" class="hidden"></section>
+
+  <!-- فورم جهاز -->
+  <section id="vEdit" class="hidden"></section>
+
+  <!-- فورم معايرة -->
+  <section id="vCal" class="hidden"></section>
+
+  <!-- الإعدادات -->
+  <section id="vSet" class="hidden"></section>
+</main>
+<div id="viewer" class="hidden"></div>
+<div id="print"></div>
+
+<div id="nfcOverlay" class="hidden"><div class="card">
+  <div class="pulse">📡</div>
+  <p id="nfcMsg">قرّب الكارت من ضهر الموبايل</p>
+  <button class="sec" onclick="nfcCancel()">إلغاء</button>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const KEY='soilcal_v1';
+const TYPES=['جهاز pH','جهاز EC (توصيل كهربي)','ميزان حساس','فرن تجفيف','جهاز رطوبة','ترمومتر','هيدروميتر','مناخل','سبكتروفوتوميتر','لهب (Flame Photometer)','أخرى'];
+let db=load(), cur=null, nfcAbort=null;
+
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||{devices:[]}}catch(e){return{devices:[]}}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('تعذّر الحفظ!')}}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
+function today(){return new Date().toISOString().slice(0,10)}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+Number(n||0));return x.toISOString().slice(0,10)}
+function dev(id){return db.devices.find(d=>d.id===id)}
+function lastCal(d){return (d.cals||[]).slice().sort((a,b)=>b.date.localeCompare(a.date))[0]}
+
+function status(d){
+  const l=lastCal(d);
+  if(!l) return {k:'none',t:'لم يُعاير',due:null};
+  const due=addDays(l.date,d.interval||180);
+  const days=Math.round((new Date(due)-new Date(today()))/864e5);
+  if(l.result==='fail') return {k:'bad',t:'فشل المعايرة',due};
+  if(days<0) return {k:'bad',t:`متأخر ${-days} يوم`,due};
+  if(days<=14) return {k:'warn',t:`باقي ${days} يوم`,due};
+  return {k:'ok',t:'سليم',due};
+}
+
+function show(v){['vList','vDev','vEdit','vCal','vSet'].forEach(x=>$(x).classList.toggle('hidden',x!==v));scrollTo(0,0)}
+function goHome(){cur=null;history.replaceState(null,'',location.pathname+location.search);renderList();show('vList')}
+
+/* ---------- القائمة ---------- */
+function renderList(){
+  const q=$('q').value.trim().toLowerCase();
+  const s={ok:0,warn:0,bad:0,none:0};
+  db.devices.forEach(d=>s[status(d).k]++);
+  $('stats').innerHTML=`<div><b>${db.devices.length}</b><span class="mut">جهاز</span></div>
+   <div><b style="color:var(--ok)">${s.ok}</b><span class="mut">سليم</span></div>
+   <div><b style="color:var(--warn)">${s.warn}</b><span class="mut">قرّب ميعاده</span></div>
+   <div><b style="color:var(--bad)">${s.bad+s.none}</b><span class="mut">محتاج معايرة</span></div>`;
+  const list=db.devices.filter(d=>!q||[d.id,d.name,d.serial,d.type].join(' ').toLowerCase().includes(q))
+   .sort((a,b)=>({bad:0,none:1,warn:2,ok:3}[status(a).k]-{bad:0,none:1,warn:2,ok:3}[status(b).k]));
+  $('list').innerHTML=list.length?list.map(d=>{const st=status(d);return`
+   <div class="card dev" onclick="openDev('${esc(d.id)}')">
+    <div class="row"><h3 class="grow">${esc(d.name)}</h3><span class="badge b-${st.k}">${st.t}</span></div>
+    <div class="mut">${esc(d.id)} · ${esc(d.type)}${d.model?' · '+esc(d.model):''}${d.serial?' · S/N '+esc(d.serial):''}${d.location?' · '+esc(d.location):''}</div>
+    <div class="mut">${st.due?'المعايرة الجاية: '+st.due:''}</div>
+   </div>`}).join(''):'<div class="card mut">مفيش أجهزة لسه — اضغط "جهاز جديد".</div>';
+}
+
+/* ---------- تفاصيل جهاز ---------- */
+function openDev(id){
+  const d=dev(id); if(!d){toast('الكارت ده مش متسجل: '+id);return}
+  cur=id; history.replaceState(null,'','#dev='+encodeURIComponent(id));
+  const st=status(d), cals=(d.cals||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  $('vDev').innerHTML=`
+  <button class="sec" onclick="goHome()">→ رجوع</button>
+  <div class="card" style="margin-top:12px">
+   <div class="row"><h2 class="grow" style="margin:0">${esc(d.name)}</h2><span class="badge b-${st.k}">${st.t}</span></div>
+   <div class="grid mut" style="margin-top:8px">
+    <div>الكود: <b>${esc(d.id)}</b></div><div>النوع: ${esc(d.type)}</div>
+    <div>الموديل: ${esc(d.model||'—')}</div>
+    <div>السيريال: ${esc(d.serial||'—')}</div><div>المكان: ${esc(d.location||'—')}</div>
+    <div>دورة المعايرة: كل ${d.interval} يوم</div><div>السماحية: ± ${d.tolerance} ${esc(d.unit||'')}</div>
+    <div>المعايرة الجاية: <b>${st.due||'—'}</b></div>
+   </div>
+   <div class="row" style="margin-top:12px">
+    <button onclick="newCal()">+ تسجيل معايرة</button>
+    <button onclick="tagText()">🏷 نص الاستيكر</button>
+    <button class="sec" onclick="makeLink()">🔗 رابط (أونلاين)</button>
+    <button class="sec" onclick="nfcWrite('${esc(d.id)}')">📝 اكتب على كارت NFC</button>
+    <button class="sec" onclick="editDevice('${esc(d.id)}')">✏ تعديل</button>
+   </div>
+   <div id="linkBox"></div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">سجل المعايرات (${cals.length})</h3>
+  ${cals.length?cals.map((c,i)=>`
+   <div style="border-top:1px solid var(--line);padding:10px 0">
+    <div class="row"><b class="grow">${c.date}</b><span class="badge b-${c.result==='pass'?'ok':'bad'}">${c.result==='pass'?'مطابق':'غير مطابق'}</span>
+     <button class="sec" style="padding:4px 10px" onclick="printCert(${d.cals.indexOf(c)})">🖨 شهادة</button>
+     <button class="sec" style="padding:4px 10px" onclick="delCal(${d.cals.indexOf(c)})">حذف</button></div>
+    <div class="mut">الفني: ${esc(c.tech||'—')}${c.std?' · المحلول/المرجع: '+esc(c.std):''}${c.temp?' · الحرارة: '+esc(c.temp)+'°م':''}</div>
+    <table style="margin-top:6px"><tr><th>القيمة المرجعية</th><th>القراءة</th><th>الفرق</th></tr>
+    ${c.points.map(p=>{const e=+p.read-+p.ref;return`<tr><td>${p.ref}</td><td>${p.read}</td><td style="color:${Math.abs(e)<=+d.tolerance?'var(--ok)':'var(--bad)'}">${e>0?'+':''}${+e.toFixed(4)}</td></tr>`}).join('')}
+    </table>${c.notes?`<div class="mut" style="margin-top:4px">ملاحظات: ${esc(c.notes)}</div>`:''}
+   </div>`).join(''):'<p class="mut">مفيش معايرات متسجلة.</p>'}
+  </div>`;
+  show('vDev');
+}
+
+/* ---------- إضافة/تعديل جهاز ---------- */
+function editDevice(id){
+  const d=id?dev(id):{id:'DEV-'+String(db.devices.length+1).padStart(3,'0'),name:'',model:'',type:TYPES[0],serial:'',location:'',interval:180,tolerance:0.05,unit:''};
+  $('vEdit').innerHTML=`
+  <button class="sec" onclick="${id?`openDev('${esc(id)}')`:'goHome()'}">→ رجوع</button>
+  <div class="card" style="margin-top:12px"><h2 style="margin-top:0">${id?'تعديل جهاز':'جهاز جديد'}</h2>
+   <div class="grid">
+    <div><label>الكود (اللي هيتكتب على الكارت)</label><input id="f_id" value="${esc(d.id)}" ${id?'disabled':''}></div>
+    <div><label>اسم الجهاز</label><input id="f_name" value="${esc(d.name)}"></div>
+    <div><label>الموديل / الماركة</label><input id="f_model" value="${esc(d.model||'')}" dir="auto"></div>
+    <div><label>النوع</label><select id="f_type" ${id?'':'onchange="applyDefaults()"'}>${TYPES.map(t=>`<option ${t===d.type?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div><label>السيريال</label><input id="f_serial" value="${esc(d.serial)}"></div>
+    <div><label>المكان</label><input id="f_loc" value="${esc(d.location)}"></div>
+    <div><label>دورة المعايرة (يوم)</label><input id="f_int" type="number" value="${d.interval}"></div>
+    <div><label>السماحية ±</label><input id="f_tol" type="number" step="any" value="${d.tolerance}"></div>
+    <div><label>الوحدة</label><input id="f_unit" value="${esc(d.unit)}" placeholder="pH / µS/cm / g / °C"></div>
+   </div>
+   <div class="row" style="margin-top:14px"><button onclick="saveDevice(${id?`'${esc(id)}'`:'null'})">حفظ</button>
+   ${id?`<button class="danger" onclick="delDevice('${esc(id)}')">حذف الجهاز</button>`:''}</div>
+  </div>`;
+  show('vEdit');
+  if(!id)applyDefaults();
+}
+function applyDefaults(){
+  const t=typeDefaults()[$('f_type').value];if(!t)return;
+  $('f_int').value=t.interval;$('f_tol').value=t.tolerance;$('f_unit').value=t.unit;
+}
+function saveDevice(id){
+  const v={name:$('f_name').value.trim(),model:$('f_model').value.trim(),type:$('f_type').value,serial:$('f_serial').value.trim(),location:$('f_loc').value.trim(),
+    interval:+$('f_int').value||180,tolerance:+$('f_tol').value||0,unit:$('f_unit').value.trim()};
+  if(!v.name){toast('اكتب اسم الجهاز');return}
+  if(id){Object.assign(dev(id),v)}else{
+    const nid=$('f_id').value.trim();
+    if(!nid||dev(nid)){toast('الكود فاضي أو مستخدم قبل كده');return}
+    db.devices.push({id:nid,...v,cals:[]});id=nid;
+  }
+  save();toast('اتحفظ ✓');openDev(id);
+}
+function delDevice(id){if(confirm('متأكد إنك عايز تحذف الجهاز وكل معايراته؟')){db.devices=db.devices.filter(d=>d.id!==id);save();goHome()}}
+
+/* ---------- معايرة ---------- */
+function newCal(){
+  const d=dev(cur);
+  $('vCal').innerHTML=`
+  <button class="sec" onclick="openDev('${esc(cur)}')">→ رجوع</button>
+  <div class="card" style="margin-top:12px"><h2 style="margin-top:0">معايرة: ${esc(d.name)}</h2>
+   <div class="grid">
+    <div><label>التاريخ</label><input id="c_date" type="date" value="${today()}"></div>
+    <div><label>اسم الفني</label><input id="c_tech" value="${esc(localStorage.getItem('soilcal_tech')||'')}"></div>
+    <div><label>المحلول / الوزنة المرجعية</label><input id="c_std" placeholder="مثلاً Buffer 4/7/10"></div>
+    <div><label>درجة الحرارة °م</label><input id="c_temp" type="number" step="any"></div>
+   </div>
+   <label>النقاط (السماحية ± ${d.tolerance} ${esc(d.unit||'')})</label>
+   <table id="pts"><tr><th>القيمة المرجعية</th><th>قراءة الجهاز</th><th>الفرق</th><th></th></tr></table>
+   <button class="sec" style="margin-top:8px" onclick="addPt()">+ نقطة</button>
+   <label>ملاحظات</label><textarea id="c_notes" rows="2"></textarea>
+   <p id="c_res" style="font-weight:700"></p>
+   <button onclick="saveCal()">حفظ المعايرة</button>
+  </div>`;
+  show('vCal'); addPt(); addPt(); addPt();
+}
+function addPt(){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input type="number" step="any" class="pr" oninput="calcCal()"></td><td><input type="number" step="any" class="pd" oninput="calcCal()"></td><td class="pe"></td><td><button class="sec" style="padding:4px 9px" onclick="this.closest('tr').remove();calcCal()">✕</button></td>`;
+  $('pts').appendChild(tr);
+}
+function readPts(){return[...$('pts').querySelectorAll('tr')].slice(1).map(tr=>({ref:tr.querySelector('.pr').value,read:tr.querySelector('.pd').value,tr})).filter(p=>p.ref!==''&&p.read!=='')}
+function calcCal(){
+  const tol=+dev(cur).tolerance, pts=readPts(); let ok=true;
+  $('pts').querySelectorAll('.pe').forEach(e=>e.textContent='');
+  pts.forEach(p=>{const e=+p.read-+p.ref,good=Math.abs(e)<=tol+1e-12;ok=ok&&good;
+    const c=p.tr.querySelector('.pe');c.textContent=(e>0?'+':'')+(+e.toFixed(4));c.style.color=good?'var(--ok)':'var(--bad)'});
+  $('c_res').textContent=pts.length?(ok?'✅ النتيجة: مطابق':'❌ النتيجة: غير مطابق'):'';
+  $('c_res').style.color=ok?'var(--ok)':'var(--bad)';
+  return ok;
+}
+function saveCal(){
+  const pts=readPts(); if(!pts.length){toast('دخّل نقطة واحدة على الأقل');return}
+  const ok=calcCal(), tech=$('c_tech').value.trim();
+  try{localStorage.setItem('soilcal_tech',tech)}catch(e){}
+  dev(cur).cals.push({date:$('c_date').value,tech,std:$('c_std').value.trim(),temp:$('c_temp').value,
+    points:pts.map(p=>({ref:+p.ref,read:+p.read})),result:ok?'pass':'fail',notes:$('c_notes').value.trim()});
+  save();toast('اتسجلت المعايرة ✓');openDev(cur);
+}
+function delCal(i){if(confirm('حذف المعايرة دي؟')){dev(cur).cals.splice(i,1);save();openDev(cur)}}
+
+/* ---------- الإعدادات والقيم الافتراضية ---------- */
+const BASE_DEFAULTS={
+ 'جهاز pH':{interval:30,tolerance:0.05,unit:'pH'},
+ 'جهاز EC (توصيل كهربي)':{interval:30,tolerance:10,unit:'µS/cm'},
+ 'ميزان حساس':{interval:180,tolerance:0.001,unit:'g'},
+ 'فرن تجفيف':{interval:365,tolerance:5,unit:'°C'},
+ 'جهاز رطوبة':{interval:180,tolerance:0.5,unit:'%'},
+ 'ترمومتر':{interval:365,tolerance:0.5,unit:'°C'},
+ 'هيدروميتر':{interval:365,tolerance:1,unit:'g/L'},
+ 'مناخل':{interval:365,tolerance:0.05,unit:'mm'},
+ 'سبكتروفوتوميتر':{interval:180,tolerance:0.005,unit:'Abs'},
+ 'لهب (Flame Photometer)':{interval:90,tolerance:2,unit:'ppm'},
+ 'أخرى':{interval:180,tolerance:0.05,unit:''}
+};
+function settings(){return db.settings||(db.settings={lab:'معمل تحليل التربة',addr:'',acc:'',manager:'',footer:'تعتبر هذه الشهادة سارية حتى تاريخ المعايرة القادمة ما لم يتعرض الجهاز لعطل أو نقل.'})}
+function typeDefaults(){return Object.assign({},BASE_DEFAULTS,db.typeDefaults||{})}
+function openSettings(){
+  const s=settings(),td=typeDefaults();
+  $('vSet').innerHTML=`
+  <button class="sec" onclick="goHome()">→ رجوع</button>
+  <div class="card" style="margin-top:12px"><h2 style="margin-top:0">بيانات المعمل (بتظهر في الشهادة)</h2>
+   <div class="grid">
+    <div><label>اسم المعمل</label><input id="s_lab" value="${esc(s.lab)}"></div>
+    <div><label>العنوان / التليفون</label><input id="s_addr" value="${esc(s.addr)}"></div>
+    <div><label>رقم الاعتماد (إن وجد)</label><input id="s_acc" value="${esc(s.acc)}"></div>
+    <div><label>اسم مدير الجودة / المراجع</label><input id="s_mgr" value="${esc(s.manager)}"></div>
+   </div>
+   <label>رابط الصفحة بعد رفعها على النت (بيتبني عليه رابط الكارت)</label>
+   <input id="s_base" dir="ltr" value="${esc(s.base||'')}" placeholder="https://username.github.io/soilcal/">
+   <label>ملاحظة أسفل الشهادة</label><textarea id="s_ft" rows="2">${esc(s.footer)}</textarea>
+  </div>
+  <div class="card"><h2 style="margin-top:0">القيم الافتراضية لكل نوع جهاز</h2>
+   <p class="mut">بتتملى تلقائي لما تضيف جهاز جديد، وتقدر تغيّرها لكل جهاز لوحده.</p>
+   <table><tr><th>النوع</th><th>الدورة (يوم)</th><th>السماحية ±</th><th>الوحدة</th></tr>
+   ${TYPES.map((t,i)=>`<tr><td>${t}</td><td><input id="td_i${i}" type="number" value="${td[t].interval}"></td>
+    <td><input id="td_t${i}" type="number" step="any" value="${td[t].tolerance}"></td><td><input id="td_u${i}" value="${esc(td[t].unit)}"></td></tr>`).join('')}
+   </table>
+  </div>
+  <button onclick="saveSettings()">حفظ الإعدادات</button>`;
+  show('vSet');
+}
+function saveSettings(){
+  db.settings={lab:$('s_lab').value.trim(),addr:$('s_addr').value.trim(),acc:$('s_acc').value.trim(),manager:$('s_mgr').value.trim(),footer:$('s_ft').value.trim(),base:$('s_base').value.trim()};
+  db.typeDefaults={};
+  TYPES.forEach((t,i)=>db.typeDefaults[t]={interval:+$('td_i'+i).value||180,tolerance:+$('td_t'+i).value||0,unit:$('td_u'+i).value.trim()});
+  save();toast('اتحفظت الإعدادات ✓');goHome();
+}
+
+/* ---------- شهادة المعايرة ---------- */
+function printCert(i){
+  const d=dev(cur),c=d.cals[i],s=settings(),tol=+d.tolerance;
+  const no='CAL-'+d.id+'-'+c.date.replace(/-/g,'');
+  const errs=c.points.map(p=>+p.read-+p.ref);
+  const maxErr=errs.length?Math.max(...errs.map(Math.abs)):0;
+  $('print').innerHTML=`<div class="cert">
+   <div class="hd"><div><h1>${esc(s.lab)}</h1><div>${esc(s.addr)}</div></div>
+    <div style="text-align:left">${s.acc?'رقم الاعتماد: '+esc(s.acc)+'<br>':''}تاريخ الإصدار: ${today()}</div></div>
+   <h2>شهادة معايرة داخلية</h2>
+   <div class="no">رقم الشهادة: <b>${no}</b></div>
+   <table class="kv" style="width:100%">
+    <tr><td>اسم الجهاز</td><td>${esc(d.name)}</td><td>كود الجهاز</td><td>${esc(d.id)}</td></tr>
+    <tr><td>النوع / الموديل</td><td>${esc(d.type)}${d.model?' — '+esc(d.model):''}</td><td>الرقم التسلسلي</td><td>${esc(d.serial||'—')}</td></tr>
+    <tr><td>المكان</td><td>${esc(d.location||'—')}</td><td>تاريخ المعايرة</td><td>${c.date}</td></tr>
+    <tr><td>المرجع / المحلول القياسي</td><td>${esc(c.std||'—')}</td><td>درجة الحرارة</td><td>${c.temp?esc(c.temp)+' °م':'—'}</td></tr>
+   </table>
+   <b>نتائج القياس</b>
+   <table style="width:100%">
+    <tr><th>م</th><th>القيمة المرجعية</th><th>قراءة الجهاز</th><th>الخطأ</th><th>السماحية</th><th>الحكم</th></tr>
+    ${c.points.map((p,k)=>{const e=errs[k],ok=Math.abs(e)<=tol+1e-12;return`<tr><td>${k+1}</td><td>${p.ref} ${esc(d.unit||'')}</td><td>${p.read} ${esc(d.unit||'')}</td>
+     <td>${e>0?'+':''}${+e.toFixed(4)}</td><td>± ${tol}</td><td>${ok?'مطابق':'غير مطابق'}</td></tr>`}).join('')}
+   </table>
+   <div>أقصى خطأ مطلق: <b>${+maxErr.toFixed(4)} ${esc(d.unit||'')}</b></div>
+   <div class="res">النتيجة النهائية: ${c.result==='pass'?'✔ الجهاز مطابق وصالح للاستخدام':'✘ الجهاز غير مطابق — يُوقف عن الاستخدام لحين الإصلاح وإعادة المعايرة'}</div>
+   <div>تاريخ المعايرة القادمة: <b>${addDays(c.date,d.interval)}</b></div>
+   ${c.notes?`<div style="margin-top:6px">ملاحظات: ${esc(c.notes)}</div>`:''}
+   <div class="sig"><div>القائم بالمعايرة<br><b>${esc(c.tech||'')}</b><br><br>التوقيع</div>
+    <div>المراجع / مدير الجودة<br><b>${esc(s.manager||'')}</b><br><br>التوقيع</div>
+    <div>الختم</div></div>
+   <div class="ft">${esc(s.footer)}</div>
+  </div>`;
+  const t=document.title;document.title=no;
+  setTimeout(()=>{window.print();document.title=t},50);
+}
+
+/* ---------- نص الاستيكر (لوكال) ---------- */
+function tagText(full){
+  const d=dev(cur),c=lastCal(d),box=$('linkBox');
+  if(!c){toast('سجّل معايرة الأول');return}
+  if(full===undefined)full=localStorage.getItem('soilcal_full')!=='0';
+  try{localStorage.setItem('soilcal_full',full?'1':'0')}catch(e){}
+  const L=[
+    `🔧 ${d.name}`,
+    d.model?`الموديل: ${d.model}`:'',
+    `الكود: ${d.id}${d.serial?' | S/N: '+d.serial:''}`,
+    `آخر معايرة: ${c.date} ${c.result==='pass'?'✔ مطابق':'✘ غير مطابق'}`,
+    `⏰ المعايرة الجاية: ${addDays(c.date,d.interval)}`,
+    full&&c.tech?`الفني: ${c.tech}`:'',
+    full&&c.std?`المرجع: ${c.std}`:'',
+    full?`السماحية: ±${d.tolerance} ${d.unit||''}`.trim():'',
+    full?c.points.map(p=>`${p.ref}←${p.read}`).join(' | '):'',
+    full&&settings().lab?settings().lab:''
+  ].filter(Boolean);
+  const txt=L.join('\n');
+  const bytes=new TextEncoder().encode(txt).length+10;
+  const fit=bytes<=137?['ok','يناسب أي استيكر (NTAG213 وأكبر)']:bytes<=496?['warn','محتاج استيكر NTAG215 أو NTAG216']:bytes<=868?['warn','محتاج استيكر NTAG216']:['bad','طويل على الاستيكر — اختار "مختصر"'];
+  box.innerHTML=`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+   <div class="row"><b class="grow">نص الاستيكر</b>
+    <button class="${full?'':'sec'}" style="padding:5px 10px" onclick="tagText(true)">كامل</button>
+    <button class="${full?'sec':''}" style="padding:5px 10px" onclick="tagText(false)">مختصر</button></div>
+   <textarea id="tagTxt" rows="${L.length+1}" style="margin-top:8px" dir="auto">${esc(txt)}</textarea>
+   <div style="margin-top:4px"><span class="badge b-${fit[0]}">${bytes} بايت</span> <span class="mut">${fit[1]}</span></div>
+   <div class="row" style="margin-top:8px"><button onclick="copyText($('tagTxt').value)">📋 نسخ النص</button></div>
+   <div class="mut" style="margin-top:6px">تقدر تعدّل النص قبل ما تنسخه. ⚠ بعد كل معايرة جديدة اكتب الاستيكر تاني.</div></div>`;
+}
+
+/* ---------- رابط الكارت (البيانات جوه الرابط) ---------- */
+function toB64(u8){let s='';u8.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function fromB64(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function pipe(u8,stream){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer())}
+async function pack(arr){
+  const raw=new TextEncoder().encode(JSON.stringify(arr));
+  if('CompressionStream' in window){try{return 'z'+toB64(await pipe(raw,new CompressionStream('deflate-raw')))}catch(e){}}
+  return 'j'+toB64(raw);
+}
+async function unpack(s){
+  let u=fromB64(s.slice(1));
+  if(s[0]==='z')u=await pipe(u,new DecompressionStream('deflate-raw'));
+  return JSON.parse(new TextDecoder().decode(u));
+}
+function baseUrl(){
+  const b=settings().base;
+  if(b)return b.split('#')[0];
+  return location.protocol.startsWith('http')?location.href.split('#')[0]:'';
+}
+async function makeLink(){
+  const d=dev(cur),c=lastCal(d),box=$('linkBox');
+  if(!c){toast('سجّل معايرة الأول');return}
+  const base=baseUrl();
+  if(!base){box.innerHTML=`<p style="color:var(--bad)">لازم تكتب رابط الصفحة بعد رفعها في ⚙ الإعدادات الأول.</p>`;return}
+  const s=settings();
+  const arr=[1,s.lab,d.id,d.name,d.type,d.serial||'',c.date,c.tech||'',c.result==='pass'?1:0,
+    addDays(c.date,d.interval),d.unit||'',d.tolerance,c.std||'',c.temp||'',c.points.flatMap(p=>[p.ref,p.read])];
+  const link=base+'#v='+await pack(arr);
+  const bytes=new TextEncoder().encode(link.replace(/^https?:\/\/(www\.)?/,'')).length+8;
+  const fit=bytes<=130?'يناسب أي كارت (NTAG213 وأكبر)':bytes<=480?'محتاج كارت NTAG215 أو NTAG216':bytes<=840?'محتاج كارت NTAG216':'طويل جداً على الكارت — قلّل عدد النقاط';
+  box.innerHTML=`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+   <b>رابط آخر معايرة (${c.date})</b>
+   <div class="linkout card" style="margin:6px 0">${esc(link)}</div>
+   <div class="mut">الحجم تقريباً ${bytes} بايت — ${fit}</div>
+   <div class="row" style="margin-top:8px">
+    <button onclick="copyText(this.dataset.l)" data-l="${esc(link)}">📋 نسخ الرابط</button>
+    <button class="sec" onclick="copyText(this.dataset.l)" data-l="${esc(link.replace(/^https:\/\//,''))}">📋 نسخ من غير https://</button>
+    <button class="sec" onclick="window.open(this.dataset.l,'_blank')" data-l="${esc(link)}">👁 تجربة</button>
+   </div>
+   <div class="mut" style="margin-top:6px">امسح الـQR بكاميرا الآيفون يفتح الرابط، وبعدين انسخه في NFC Tools. ⚠ لما تسجّل معايرة جديدة لازم تكتب الكارت تاني.</div>
+   <div id="qr"></div></div>`;
+  if(window.QRCode){try{new QRCode($('qr'),{text:link,width:220,height:220,correctLevel:QRCode.CorrectLevel.L})}catch(e){$('qr').remove()}}else $('qr').remove();
+}
+function copyText(t){
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('اتنسخ ✓'))
+   .catch(()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('اتنسخ ✓')}catch(e){toast('انسخه يدوي')}a.remove()});
+}
+async function showViewer(code){
+  document.body.classList.add('viewer');
+  const v=$('viewer');v.classList.remove('hidden');
+  let a;
+  try{a=await unpack(code)}catch(e){v.innerHTML='<div class="card">⚠ الرابط ده مش سليم أو ناقص. اكتب الكارت تاني.</div>';return}
+  const [ver,lab,id,name,type,serial,date,tech,pass,next,unit,tol,std,temp,flat]=a;
+  const pts=[];for(let i=0;i<flat.length;i+=2)pts.push({ref:flat[i],read:flat[i+1]});
+  const days=Math.round((new Date(next)-new Date(today()))/864e5);
+  let st;
+  if(!pass)st={c:'var(--bad)',t:'✘ غير مطابق — ممنوع الاستخدام'};
+  else if(days<0)st={c:'var(--bad)',t:`✘ المعايرة منتهية من ${-days} يوم`};
+  else if(days<=14)st={c:'var(--warn)',t:`⚠ صالح — باقي ${days} يوم على المعايرة`};
+  else st={c:'var(--ok)',t:'✔ الجهاز معاير وصالح للاستخدام'};
+  document.title=name+' — معايرة';
+  v.innerHTML=`
+   <div class="mut" style="text-align:center">${esc(lab)}</div>
+   <h2 style="text-align:center;margin:4px 0">${esc(name)}</h2>
+   <div class="mut" style="text-align:center">${esc(id)} · ${esc(type)}</div>
+   <div class="vstat" style="background:${st.c}">${st.t}</div>
+   <div class="card"><table>
+    <tr><td class="mut">آخر معايرة</td><td><b>${esc(date)}</b></td></tr>
+    <tr><td class="mut">المعايرة الجاية</td><td><b>${esc(next)}</b></td></tr>
+    <tr><td class="mut">السيريال</td><td>${esc(serial||'—')}</td></tr>
+    <tr><td class="mut">الفني</td><td>${esc(tech||'—')}</td></tr>
+    <tr><td class="mut">المرجع</td><td>${esc(std||'—')}</td></tr>
+    <tr><td class="mut">الحرارة</td><td>${temp?esc(temp)+' °م':'—'}</td></tr>
+    <tr><td class="mut">السماحية</td><td>± ${esc(tol)} ${esc(unit)}</td></tr>
+   </table></div>
+   <div class="card"><b>نقاط المعايرة</b><table style="margin-top:6px">
+    <tr><th>المرجع</th><th>القراءة</th><th>الخطأ</th></tr>
+    ${pts.map(p=>{const e=p.read-p.ref,ok=Math.abs(e)<=+tol+1e-12;return`<tr><td>${p.ref}</td><td>${p.read}</td><td style="color:${ok?'var(--ok)':'var(--bad)'}">${e>0?'+':''}${+e.toFixed(4)}</td></tr>`}).join('')}
+   </table></div>
+   <p class="mut" style="text-align:center">البيانات دي بتاريخ كتابة الكارت.</p>`;
+}
+
+/* ---------- NFC ---------- */
+const hasNFC='NDEFReader' in window;
+$('nfcInfo').textContent=hasNFC?'📡 NFC مدعوم على الجهاز ده.'
+ :'⚠ NFC مش مدعوم هنا — محتاج Chrome على أندرويد، والصفحة مفتوحة من localhost أو https. باقي الصفحة شغالة عادي.';
+function overlay(on,msg){$('nfcOverlay').classList.toggle('hidden',!on);if(msg)$('nfcMsg').textContent=msg}
+function nfcCancel(){nfcAbort?.abort();overlay(false)}
+function idFromRecords(recs){
+  const dec=new TextDecoder();
+  for(const r of recs){
+    const t=dec.decode(r.data);
+    if(r.recordType==='text'&&t.startsWith('SOILCAL:'))return t.slice(8);
+    if(r.recordType==='url'){const m=t.match(/#dev=([^&]+)/);if(m)return decodeURIComponent(m[1])}
+  }
+  return null;
+}
+async function nfcScan(){
+  if(!hasNFC){const id=prompt('NFC مش مدعوم هنا. اكتب كود الجهاز يدوي:');if(id)openDev(id.trim());return}
+  try{
+    nfcAbort=new AbortController(); overlay(true,'قرّب الكارت من ضهر الموبايل');
+    const r=new NDEFReader(); await r.scan({signal:nfcAbort.signal});
+    r.onreadingerror=()=>toast('مقدرتش أقرا الكارت، جرّب تاني');
+    r.onreading=e=>{
+      const id=idFromRecords(e.message.records);
+      nfcAbort.abort(); overlay(false);
+      if(!id){toast('الكارت فاضي أو مش من كروت المعمل (UID: '+e.serialNumber+')');return}
+      if(navigator.vibrate)navigator.vibrate(80);
+      if(dev(id))openDev(id);
+      else if(confirm('الكارت عليه كود '+id+' ومش متسجل. تضيفه كجهاز جديد؟')){editDevice();$('f_id').value=id}
+    };
+  }catch(e){overlay(false);toast('خطأ NFC: '+e.message)}
+}
+async function nfcWrite(id){
+  if(!hasNFC){toast('NFC مش مدعوم هنا');return}
+  try{
+    overlay(true,'قرّب الكارت عشان أكتب عليه كود '+id);
+    const url=location.href.split('#')[0]+'#dev='+encodeURIComponent(id);
+    nfcAbort=new AbortController();
+    await new NDEFReader().write({records:[{recordType:'text',data:'SOILCAL:'+id},{recordType:'url',data:url}]},{signal:nfcAbort.signal});
+    overlay(false); if(navigator.vibrate)navigator.vibrate([60,40,60]); toast('اتكتب على الكارت ✓');
+  }catch(e){overlay(false);if(e.name!=='AbortError')toast('فشلت الكتابة: '+e.message)}
+}
+
+/* ---------- تصدير/استيراد ---------- */
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function exportJSON(){download('soilcal-backup-'+today()+'.json',JSON.stringify(db,null,1),'application/json')}
+function importJSON(inp){
+  const f=inp.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const x=JSON.parse(rd.result);if(!Array.isArray(x.devices))throw 0;
+    if(confirm('ده هيستبدل البيانات الحالية بـ '+x.devices.length+' جهاز. موافق؟')){db=x;save();goHome();toast('اترجعت النسخة ✓')}}
+    catch(e){toast('الملف مش صالح')}inp.value=''};
+  rd.readAsText(f);
+}
+function exportCSV(){
+  const rows=[['الكود','الجهاز','النوع','السيريال','التاريخ','الفني','المرجع','الحرارة','القيمة المرجعية','القراءة','الفرق','السماحية','النتيجة','ملاحظات']];
+  db.devices.forEach(d=>(d.cals||[]).forEach(c=>c.points.forEach(p=>rows.push([d.id,d.name,d.type,d.serial,c.date,c.tech,c.std,c.temp,p.ref,p.read,+(p.read-p.ref).toFixed(4),d.tolerance,c.result==='pass'?'مطابق':'غير مطابق',c.notes]))));
+  download('soilcal-'+today()+'.csv','\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv');
+}
+
+/* ---------- تشغيل ---------- */
+function route(){
+  const v=location.hash.match(/^#v=([A-Za-z0-9_-]+)/);
+  if(v){showViewer(v[1]);return}
+  const m=location.hash.match(/#dev=([^&]+)/);if(m&&dev(decodeURIComponent(m[1])))openDev(decodeURIComponent(m[1]));else{renderList();show('vList')}}
+addEventListener('hashchange',route);
+route();
+</script>
+</body>
+</html>
