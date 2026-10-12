@@ -30,7 +30,8 @@ label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
 .b-ok{background:var(--ok)}.b-warn{background:var(--warn)}.b-bad{background:var(--bad)}.b-none{background:var(--mut)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{border-bottom:1px solid var(--line);padding:6px;text-align:right}
-.hidden{display:none}
+.hidden{display:none!important}
+body.nonfc .nfc-only{display:none!important}
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;opacity:0;transition:.3s;pointer-events:none;max-width:90%}
 #toast.show{opacity:1}
 #nfcOverlay{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9}
@@ -70,7 +71,7 @@ body.viewer header button,body.viewer main{display:none}
 <header>
   <h1>🧪 معايرة أجهزة معمل التربة</h1>
   <button onclick="openSettings()">⚙ الإعدادات</button>
-  <button onclick="nfcScan()">📡 امسح كارت NFC</button>
+  <button class="nfc-only" onclick="nfcScan()">📡 امسح كارت NFC</button>
 </header>
 
 <main>
@@ -181,7 +182,7 @@ function openDev(id){
     <button onclick="newCal()">+ تسجيل معايرة</button>
     <button onclick="tagText()">🏷 نص الاستيكر</button>
     <button class="sec" onclick="makeLink()">🔗 رابط (أونلاين)</button>
-    <button class="sec" onclick="nfcWrite('${esc(d.id)}')">📝 اكتب على كارت NFC</button>
+    <button class="sec nfc-only" onclick="nfcWrite('${esc(d.id)}')">📝 اكتب على كارت NFC</button>
     <button class="sec" onclick="editDevice('${esc(d.id)}')">✏ تعديل</button>
    </div>
    <div id="linkBox"></div>
@@ -486,8 +487,8 @@ async function showViewer(code){
 
 /* ---------- NFC ---------- */
 const hasNFC='NDEFReader' in window;
-$('nfcInfo').textContent=hasNFC?'📡 NFC مدعوم على الجهاز ده.'
- :'⚠ NFC مش مدعوم هنا — محتاج Chrome على أندرويد، والصفحة مفتوحة من localhost أو https. باقي الصفحة شغالة عادي.';
+if(!hasNFC)document.body.classList.add('nonfc');
+$('nfcInfo').textContent=hasNFC?'📡 NFC مدعوم على الجهاز ده.':'';
 function overlay(on,msg){$('nfcOverlay').classList.toggle('hidden',!on);if(msg)$('nfcMsg').textContent=msg}
 function nfcCancel(){nfcAbort?.abort();overlay(false)}
 function idFromRecords(recs){
